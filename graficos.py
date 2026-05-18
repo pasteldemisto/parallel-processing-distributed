@@ -1,6 +1,13 @@
-"""Geracao de graficos de desempenho com matplotlib."""
+"""
+graficos.py
+-----------
+Geracao de graficos de desempenho com matplotlib.
 
-from __future__ import annotations
+Responsabilidades:
+    - Agregar resultados por caso de teste e modo (media entre repeticoes)
+    - Gerar graficos de tempo medio, speedup e eficiencia
+    - Salvar os graficos em PNG no diretorio results/plots/
+"""
 
 from collections import defaultdict
 from pathlib import Path
@@ -9,8 +16,20 @@ from statistics import mean
 import matplotlib.pyplot as plt
 
 
-def _rotulo_modo(registro: dict) -> str:
-    """Gera o rotulo legivel para cada modo de execucao."""
+# ---------------------------------------------------------------------------
+# Utilitarios de rotulagem e agregacao
+# ---------------------------------------------------------------------------
+
+def _rotulo_modo(registro):
+    """
+    Gera o rotulo legivel para exibicao nas legendas dos graficos.
+
+    Args:
+        registro : dicionario com as metricas do experimento
+
+    Returns:
+        String formatada com o nome do modo e suas configuracoes.
+    """
     modo = registro["modo"]
     if modo == "serial":
         return "Serial"
@@ -23,8 +42,19 @@ def _rotulo_modo(registro: dict) -> str:
     return modo
 
 
-def _media_por_caso_e_modo(resultados: list[dict]) -> list[dict]:
-    """Agrupa os registros por caso de teste e modo, retornando medias."""
+def _media_por_caso_e_modo(resultados):
+    """
+    Agrupa os registros por caso de teste e modo, calculando a media das metricas.
+
+    Como cada caso e executado multiplas vezes (repeticoes), esta funcao
+    consolida os valores em um unico ponto por (caso, modo) para os graficos.
+
+    Args:
+        resultados : lista de dicionarios com todas as metricas coletadas
+
+    Returns:
+        Lista de dicionarios agregados com medias de tempo, speedup e eficiencia.
+    """
     grupos = defaultdict(list)
     for reg in resultados:
         chave = (reg["caso"], _rotulo_modo(reg))
@@ -34,38 +64,57 @@ def _media_por_caso_e_modo(resultados: list[dict]) -> list[dict]:
     for (caso, rotulo), regs in sorted(grupos.items()):
         agregados.append(
             {
-                "caso": caso,
-                "rotulo": rotulo,
-                "tempo": mean(r["tempo"] for r in regs),
-                "speedup": mean(r["speedup"] for r in regs),
+                "caso":       caso,
+                "rotulo":     rotulo,
+                "tempo":      mean(r["tempo"] for r in regs),
+                "speedup":    mean(r["speedup"] for r in regs),
                 "eficiencia": mean(r["eficiencia"] for r in regs),
             }
         )
     return agregados
 
 
-def plotar_resultados(
-    resultados: list[dict],
-    diretorio_saida: str = "results/plots",
-    exibir: bool = True,
-) -> None:
-    """Gera e salva os graficos de tempo, speedup e eficiencia."""
+# ---------------------------------------------------------------------------
+# Geracao e salvamento dos graficos
+# ---------------------------------------------------------------------------
+
+def plotar_resultados(resultados, diretorio_saida="results/plots", exibir=True):
+    """
+    Gera e salva os tres graficos de desempenho dos experimentos.
+
+    Graficos gerados:
+        - tempo_execucao.png : tempo medio de execucao por caso de teste
+        - speedup.png        : speedup medio em relacao ao modo serial
+        - eficiencia.png     : eficiencia media (speedup / numero de servidores)
+
+    O eixo X usa os rotulos dos casos de teste (ex: "500x200") e cada linha
+    do grafico representa um modo de execucao diferente.
+
+    Args:
+        resultados       : lista de dicionarios com as metricas coletadas
+        diretorio_saida  : pasta onde os arquivos PNG serao salvos
+        exibir           : se True, abre a janela interativa do matplotlib
+    """
     agregados = _media_por_caso_e_modo(resultados)
     pasta_saida = Path(diretorio_saida)
     pasta_saida.mkdir(parents=True, exist_ok=True)
 
+    # Define as tres metricas a plotar com seus titulos e nomes de arquivo
     metricas = [
-        ("tempo", "Tempo medio (s)", "Tempo Medio de Execucao por Caso de Teste", "tempo_execucao.png"),
-        ("speedup", "Speedup medio", "Speedup Medio por Caso de Teste", "speedup.png"),
-        ("eficiencia", "Eficiencia media", "Eficiencia Media por Caso de Teste", "eficiencia.png"),
+        ("tempo",      "Tempo medio (s)",  "Tempo Medio de Execucao por Caso de Teste", "tempo_execucao.png"),
+        ("speedup",    "Speedup medio",     "Speedup Medio por Caso de Teste",           "speedup.png"),
+        ("eficiencia", "Eficiencia media",  "Eficiencia Media por Caso de Teste",        "eficiencia.png"),
     ]
+
+    # Ordem fixa dos casos no eixo X para manter consistencia entre graficos
+    casos_unicos = sorted({reg["caso"] for reg in agregados})
 
     for metrica, rotulo_y, titulo, nome_arquivo in metricas:
         fig, ax = plt.subplots(figsize=(13, 6))
         rotulos_unicos = sorted({reg["rotulo"] for reg in agregados})
-        casos_unicos = sorted({reg["caso"] for reg in agregados})
 
         for rotulo in rotulos_unicos:
+            # Filtra e ordena os pontos deste modo na ordem dos casos do eixo X
             pontos = [reg for reg in agregados if reg["rotulo"] == rotulo]
             pontos_ord = sorted(pontos, key=lambda r: casos_unicos.index(r["caso"]))
             x = list(range(len(pontos_ord)))
