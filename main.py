@@ -1,8 +1,15 @@
 """
-Ponto de entrada do experimento de Multiplicacao de Matrizes Distribuida.
+main.py
+-------
 
-Configure os parametros abaixo e execute:
-    python executar.py
+Configure os parametros abaixo conforme necessario e execute:
+    python main.py
+
+O script ira:
+    1. Subir os processos servidores TCP na maquina local
+    2. Executar os 4 modos de multiplicacao para cada caso de teste
+    3. Salvar os resultados em results/resultados.csv
+    4. Gerar os graficos de desempenho em results/plots/
 """
 
 from avaliacao import executar_tudo
@@ -28,34 +35,42 @@ from avaliacao import executar_tudo
 #   9   |  800 x  80  |  80 x  80
 #  10   | 1000 x 250  | 250 x 250
 # ---------------------------------------------------------------------------
-CASOS_DE_TESTE: list[tuple[int, int]] = [
-    (50,   100),   # Caso 1
-    (200,  100),   # Caso 2
-    (50,   500),   # Caso 3
-    (500,  100),   # Caso 4
-    (1000, 100),   # Caso 5
-    (500,  200),   # Caso 6
-    (100,  300),   # Caso 7
-    (300,  600),   # Caso 8
-    (800,   80),   # Caso 9
-    (1000, 250),   # Caso 10
+CASOS_DE_TESTE = [
+    (50,   100),   # Caso 1  - matriz pequena, poucos elementos
+    (200,  100),   # Caso 2  - mais linhas, mesma coluna
+    (50,   500),   # Caso 3  - poucas linhas, coluna grande
+    (500,  100),   # Caso 4  - muitas linhas, coluna media
+    (1000, 100),   # Caso 5  - alto numero de linhas
+    (500,  200),   # Caso 6  - dimensoes medianas equilibradas
+    (100,  300),   # Caso 7  - coluna maior que linhas
+    (300,  600),   # Caso 8  - matriz de porte elevado
+    (800,   80),   # Caso 9  - muitas linhas, coluna pequena
+    (1000, 250),   # Caso 10 - maior caso de teste
 ]
 
-# Numero de repeticoes por caso de teste (para media dos tempos)
-REPETICOES: int = 2
+# Numero de vezes que cada caso e repetido (os tempos sao medios das repeticoes)
+REPETICOES = 2
 
-# Semente para reproducibilidade dos dados aleatorios
-SEMENTE: int = 42
+# Semente base para reproducibilidade dos dados aleatorios entre execucoes
+SEMENTE = 42
 
-# Infraestrutura distribuida
-QUANTIDADE_SERVIDORES: int = 2
-WORKERS_LOCAIS: int = 4           # processos para o modo paralelo local
-WORKERS_POR_SERVIDOR: int = 4     # processos em cada no servidor (modo hibrido)
+# Quantidade de processos servidores TCP simulados na maquina local
+QUANTIDADE_SERVIDORES = 2
 
-# Controle de execucao
-RODAR_TESTES: bool = False        # True para rodar pytest antes dos experimentos
-SALVAR_RESULTADOS: bool = True    # salva CSV em results/resultados.csv
-EXIBIR_GRAFICOS: bool = True      # abre janela com os graficos ao final
+# Numero de processos paralelos usados no modo "Paralelo local"
+WORKERS_LOCAIS = 4
+
+# Numero de processos paralelos dentro de cada servidor (modo "Distribuido hibrido")
+WORKERS_POR_SERVIDOR = 4
+
+# Se True, executa pytest antes dos experimentos para verificar corretude do codigo
+RODAR_TESTES = False
+
+# Se True, salva todos os resultados em results/resultados.csv ao final
+SALVAR_RESULTADOS = True
+
+# Se True, abre a janela interativa com os graficos ao final da execucao
+EXIBIR_GRAFICOS = True
 
 
 if __name__ == "__main__":
