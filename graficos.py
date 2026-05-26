@@ -106,8 +106,8 @@ def plotar_resultados(resultados, diretorio_saida="results/plots", exibir=True):
         ("eficiencia", "Eficiencia media",  "Eficiencia Media por Caso de Teste",        "eficiencia.png"),
     ]
 
-    # Ordem fixa dos casos no eixo X para manter consistencia entre graficos
-    casos_unicos = sorted({reg["caso"] for reg in agregados})
+    # Ordem crescente numerica dos casos (MxN)
+    casos_unicos = sorted({reg["caso"] for reg in agregados}, key=lambda c: tuple(map(int, c.split("x"))))
 
     for metrica, rotulo_y, titulo, nome_arquivo in metricas:
         fig, ax = plt.subplots(figsize=(13, 6))
