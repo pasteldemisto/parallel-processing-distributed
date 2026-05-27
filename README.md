@@ -1,6 +1,7 @@
 # Multiplicação de Matrizes Distribuída
 
-Projeto desenvolvido para a disciplina de **Computação Paralela e Concorrente** (AV3 – 2026.1).  
+Projeto desenvolvido para a disciplina de **Computação Paralela e Concorrente** (AV3 – 2026.1).
+
 O objetivo é comparar quatro estratégias de multiplicação de matrizes retangulares, variando entre execução serial, paralelismo local com múltiplos processos e computação distribuída simulada via sockets TCP.
 
 ---
@@ -9,36 +10,70 @@ O objetivo é comparar quatro estratégias de multiplicação de matrizes retang
 
 ```
 PARALLEL-PROCESSING-DISTRI.../
-├── main.py            # Ponto de entrada + configuração dos parâmetros
+├── main.py            # Ponto de entrada + parâmetros de configuração
 ├── operacoes.py       # Geração de matrizes, multiplicação serial e paralela
 ├── comunicacao.py     # Servidores TCP, protocolo de mensagens, cliente distribuído
 ├── avaliacao.py       # Orquestração dos experimentos e coleta de métricas
 ├── graficos.py        # Geração de gráficos com matplotlib
 ├── requirements.txt   # Dependências Python
 └── results/
-    ├── resultados.csv         # Resultados completos em CSV (gerado ao executar)
+    ├── resultados.csv         # Métricas de desempenho (gerado ao executar)
+    ├── matrizes/
+    │   ├── 300x600_rep1_A.csv # Matriz A do caso 300x600, repetição 1
+    │   ├── 300x600_rep1_B.csv # Matriz B
+    │   └── 300x600_rep1_C.csv # Resultado C = A x B
     └── plots/
-        ├── tempo_execucao.png # Tempo médio por caso de teste
-        ├── speedup.png        # Speedup por caso de teste
-        └── eficiencia.png     # Eficiência por caso de teste
+        ├── tempo_execucao.png
+        ├── speedup.png
+        └── eficiencia.png
 ```
 
 ---
 
-## Modos de Execução Comparados
+## Modos de Operação
 
-| Modo                    | Descrição                                                                          |
-|-------------------------|------------------------------------------------------------------------------------|
-| **Serial**              | Multiplicação linha × coluna em loop puro Python, sem paralelismo                  |
-| **Paralelo local**      | Divide as linhas de A em blocos e distribui entre processos com `ProcessPoolExecutor` |
-| **Distribuído serial**  | Envia blocos via socket TCP para servidores que multiplicam serialmente             |
-| **Distribuído híbrido** | Cada servidor usa `ProcessPoolExecutor` internamente (distribuído + paralelo)       |
+O projeto possui dois modos, controlados pela variável `MODO_INTERATIVO` em `main.py`:
+
+### Modo Batch (`MODO_INTERATIVO = False`)
+Executa automaticamente os 10 casos de teste pré-definidos com as configurações fixadas no topo de `main.py`. Ideal para rodar todos os experimentos de uma vez e gerar os gráficos.
+
+### Modo Interativo (`MODO_INTERATIVO = True`)
+A cada rodada o usuário informa via terminal:
+- Dimensões da matriz A (M × N)
+- Número de servidores
+- Quantidade de workers para paralelismo local
+- Quantidade de workers por servidor (modo híbrido)
+
+Permite testar qualquer combinação de tamanho e configuração sem editar código.
+
+**Exemplo de sessão interativa:**
+```
+--- Rodada #1 ---
+  Linhas de A (M)                  : 400
+  Colunas de A / Linhas de B (N)   : 300
+  Numero de servidores             : 3
+  Workers para paralelismo local   : 6
+  Workers por servidor (hibrido)   : 4
+
+  Configuracao: A=400x300 | B=300x300 | 3 serv. | 6 workers locais | 4 workers/servidor
+```
 
 ---
 
-## Casos de Teste
+## Modos de Multiplicação Comparados
 
-São utilizados **10 casos de teste** com matrizes retangulares **MxN**. Para cada caso, a matriz **A** tem dimensão **M×N** e a matriz **B** tem dimensão **N×N**, garantindo que a multiplicação `A × B` seja válida e produzindo um resultado de dimensão **M×N**.
+| Modo                    | Descrição                                                                          |
+|-------------------------|------------------------------------------------------------------------------------|
+| **Serial**              | Loop Python puro, sem paralelismo — baseline para cálculo de speedup               |
+| **Paralelo local**      | Divide as linhas de A entre processos usando `ProcessPoolExecutor`                 |
+| **Distribuído serial**  | Envia blocos via socket TCP para servidores que multiplicam serialmente            |
+| **Distribuído híbrido** | Cada servidor usa `ProcessPoolExecutor` internamente (distribuído + paralelo)      |
+
+---
+
+## Casos de Teste Pré-definidos
+
+São 10 casos com matrizes retangulares. A matriz **A** tem dimensão **M×N**, a matriz **B** tem dimensão **N×N** (garante multiplicação válida), e o resultado **C = A×B** tem dimensão **M×N**.
 
 | Caso | Matriz A (M×N) | Matriz B (N×N) | Resultado C (M×N) |
 |:----:|:--------------:|:--------------:|:-----------------:|
@@ -67,22 +102,25 @@ source venv/bin/activate        # Linux/macOS
 pip install -r requirements.txt
 ```
 
-### 2. Configurar os parâmetros (opcional)
-
-Edite o topo de `main.py` conforme necessário:
+### 2. Configurar `main.py`
 
 ```python
-CASOS_DE_TESTE = [...]       # lista de (linhas, colunas) da matriz A
-REPETICOES = 2               # repetições por caso (para média dos tempos)
-QUANTIDADE_SERVIDORES = 2    # nós servidores simulados
-WORKERS_LOCAIS = 4           # processos para o modo paralelo local
-WORKERS_POR_SERVIDOR = 4     # processos em cada servidor (modo híbrido)
-RODAR_TESTES = False         # True para executar pytest antes
-SALVAR_RESULTADOS = True     # salva CSV em results/resultados.csv
-EXIBIR_GRAFICOS = True       # abre janela com gráficos ao final
+# Escolha o modo de operacao:
+MODO_INTERATIVO = False   # False = batch | True = interativo
+
+# Configuracoes do modo batch:
+REPETICOES = 2
+QUANTIDADE_SERVIDORES = 2
+WORKERS_LOCAIS = 4
+WORKERS_POR_SERVIDOR = 4
+
+# Saidas:
+SALVAR_RESULTADOS = True  # salva results/resultados.csv
+SALVAR_MATRIZES   = True  # salva A, B e C em results/matrizes/
+EXIBIR_GRAFICOS   = True  # abre janela com graficos ao final
 ```
 
-### 3. Rodar
+### 3. Executar
 
 ```bash
 python main.py
@@ -90,31 +128,35 @@ python main.py
 
 ---
 
-## Saídas Geradas
-
-Após a execução, os seguintes arquivos são criados automaticamente:
+## Arquivos Gerados
 
 ```
 results/
-├── resultados.csv           # Tabela completa com tempo, speedup e eficiência por caso
+├── resultados.csv              # Métricas de todos os experimentos
+├── matrizes/
+│   ├── {caso}_{id}_A.csv       # Matriz A de cada execução
+│   ├── {caso}_{id}_B.csv       # Matriz B de cada execução
+│   └── {caso}_{id}_C.csv       # Resultado C = A x B
 └── plots/
-    ├── tempo_execucao.png   # Tempo médio (s) por caso de teste e modo
-    ├── speedup.png          # Speedup em relação ao serial
-    └── eficiencia.png       # Eficiência (speedup / número de servidores)
+    ├── tempo_execucao.png      # Tempo médio (s) por caso e modo
+    ├── speedup.png             # Speedup em relação ao serial
+    └── eficiencia.png          # Eficiência (speedup / nº servidores)
 ```
+
+**Nomenclatura dos CSVs de matrizes:**
+- Modo batch: `{linhas}x{colunas}_rep{N}_A.csv` — ex: `300x600_rep1_A.csv`
+- Modo interativo: `{linhas}x{colunas}_custom_{N}_A.csv` — ex: `400x300_custom_1_A.csv`
 
 ---
 
 ## Métricas Coletadas
 
-Para cada combinação de *caso de teste × modo × repetição*, são registradas:
-
 | Métrica      | Descrição                                                        |
 |--------------|------------------------------------------------------------------|
 | `tempo`      | Tempo de parede (wall time) da operação completa                 |
 | `speedup`    | `tempo_serial / tempo` — ganho relativo ao modo serial           |
-| `eficiencia` | `speedup / nº_servidores` — quão bem os recursos são usados      |
-| `valido`     | Verifica se o resultado é idêntico ao serial (corretude)         |
+| `eficiencia` | `speedup / nº_servidores` — aproveitamento dos recursos          |
+| `valido`     | Resultado idêntico ao serial? (corretude)                        |
 
 ---
 
@@ -123,14 +165,14 @@ Para cada combinação de *caso de teste × modo × repetição*, são registrad
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                        main.py                           │
-│              (divide A em blocos de linhas)              │
+│           (divide A em blocos de linhas)                 │
 └─────────────────────┬────────────────────────────────────┘
-                      │  ThreadPoolExecutor (cliente)
+                      │  ThreadPoolExecutor (envia em paralelo)
            ┌──────────┴──────────┐
            ▼                     ▼
    ┌──────────────┐      ┌──────────────┐
-   │  Servidor 1  │      │  Servidor 2  │   (processos separados)
-   │  TCP :porta1 │      │  TCP :porta2 │
+   │  Servidor 1  │      │  Servidor N  │   (processos separados)
+   │  TCP :porta1 │      │  TCP :portaN │
    │              │      │              │
    │ recebe bloco │      │ recebe bloco │
    │  multiplica  │      │  multiplica  │
@@ -139,20 +181,20 @@ Para cada combinação de *caso de teste × modo × repetição*, são registrad
            │                     │
            └──────────┬──────────┘
                       ▼
-          reunir_blocos() → matriz C final
+          reunir_blocos() → C final
 ```
 
-A comunicação usa um protocolo simples: cada mensagem é precedida de 8 bytes (big-endian) com o tamanho do payload JSON.
+Protocolo: cada mensagem é precedida de 8 bytes (big-endian) com o tamanho do payload JSON.
 
 ---
 
 ## Conceitos Abordados
 
-- **Computação Distribuída**: simulação de múltiplos nós de processamento via sockets TCP
-- **Paralelismo**: divisão do trabalho em blocos de linhas processados concorrentemente
-- **Metodologia de Foster (PCAM)**: particionamento → comunicação → aglomeração → mapeamento aplicado à multiplicação de matrizes
-- **Speedup e Lei de Amdahl**: análise do ganho de desempenho em função do grau de paralelismo
-- **Validação de corretude**: todos os resultados paralelos/distribuídos são comparados com o resultado serial
+- **Computação Distribuída** — simulação de múltiplos nós de processamento via sockets TCP
+- **Paralelismo** — divisão do trabalho em blocos de linhas processados concorrentemente
+- **Metodologia de Foster (PCAM)** — particionamento → comunicação → aglomeração → mapeamento
+- **Speedup e Lei de Amdahl** — o ganho real aparece nas matrizes maiores; matrizes pequenas são dominadas pelo overhead de comunicação
+- **Validação de corretude** — todos os resultados são comparados com o serial
 
 ---
 
@@ -163,4 +205,4 @@ A comunicação usa um protocolo simples: cada mensagem é precedida de 8 bytes 
 | `matplotlib` | Geração dos gráficos de desempenho       |
 | `pytest`     | Suite de testes automatizados (opcional) |
 
-> Bibliotecas padrão utilizadas: `socket`, `struct`, `json`, `multiprocessing`, `concurrent.futures`, `csv`, `random`, `time`
+> Bibliotecas padrão: `socket`, `struct`, `json`, `multiprocessing`, `concurrent.futures`, `csv`, `random`, `time`
