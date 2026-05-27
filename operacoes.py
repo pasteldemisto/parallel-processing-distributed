@@ -1,13 +1,13 @@
 """
 operacoes.py
 ------------
-Operacoes sobre matrizes: geracao, validacao, multiplicacao serial e paralela.
+Operacoes sobre matrizes: geracao, validacao e multiplicacao serial e paralela.
 
 Responsabilidades:
     - Gerar matrizes aleatorias reprodutiveis via semente
-    - Validar dimensoes para multiplicacao
-    - Multiplicar matrizes de forma serial (baseline)
-    - Multiplicar matrizes de forma paralela usando ProcessPoolExecutor
+    - Validar compatibilidade de dimensoes para multiplicacao
+    - Multiplicar matrizes serialmente (baseline de desempenho)
+    - Multiplicar matrizes com multiplos processos via ProcessPoolExecutor
     - Dividir e reunir blocos de linhas para processamento distribuido/paralelo
 """
 
@@ -15,26 +15,22 @@ from concurrent.futures import ProcessPoolExecutor
 import random
 
 
-# ---------------------------------------------------------------------------
-# Geracao de matrizes
-# ---------------------------------------------------------------------------
-
 def gerar_matriz(linhas, colunas, semente, val_min=-9, val_max=9):
     """
     Gera uma matriz aleatoria de inteiros com dimensao linhas x colunas.
 
-    Utiliza uma semente fixa para garantir reproducibilidade nos experimentos.
-    Os valores sao gerados no intervalo [val_min, val_max].
+    Usa semente fixa para garantir reproducibilidade entre execucoes.
+    Valores gerados no intervalo [val_min, val_max].
 
     Args:
-        linhas   : numero de linhas da matriz
-        colunas  : numero de colunas da matriz
-        semente  : semente para o gerador de numeros aleatorios
-        val_min  : valor inteiro minimo dos elementos (padrao -9)
-        val_max  : valor inteiro maximo dos elementos (padrao  9)
+        linhas  : numero de linhas
+        colunas : numero de colunas
+        semente : semente do gerador aleatorio
+        val_min : valor minimo dos elementos (padrao -9)
+        val_max : valor maximo dos elementos (padrao  9)
 
     Returns:
-        Matriz representada como lista de listas de inteiros.
+        Lista de listas de inteiros representando a matriz.
     """
     if linhas <= 0 or colunas <= 0:
         raise ValueError("As dimensoes da matriz devem ser valores positivos.")
@@ -43,13 +39,9 @@ def gerar_matriz(linhas, colunas, semente, val_min=-9, val_max=9):
     return [[rng.randint(val_min, val_max) for _ in range(colunas)] for _ in range(linhas)]
 
 
-# ---------------------------------------------------------------------------
-# Utilitarios de forma e validacao
-# ---------------------------------------------------------------------------
-
 def dimensoes(matriz):
     """
-    Retorna o numero de linhas e colunas da matriz.
+    Retorna (linhas, colunas) da matriz.
 
     Args:
         matriz : lista de listas representando a matriz
@@ -69,10 +61,9 @@ def dimensoes(matriz):
 
 def validar_multiplicacao(a, b):
     """
-    Verifica se as dimensoes de A e B permitem a operacao A x B.
+    Verifica se as dimensoes de A e B permitem A x B.
 
-    Para que a multiplicacao seja valida, o numero de colunas de A
-    deve ser igual ao numero de linhas de B.
+    O numero de colunas de A deve ser igual ao numero de linhas de B.
 
     Args:
         a : matriz A
@@ -88,22 +79,16 @@ def validar_multiplicacao(a, b):
         lin_b, col_b = dimensoes(b)
         raise ValueError(
             f"Dimensoes incompativeis: A={lin_a}x{col_a}, B={lin_b}x{col_b}. "
-            f"Colunas de A devem ser iguais as linhas de B."
+            f"Colunas de A ({col_a}) devem ser iguais as linhas de B ({lin_b})."
         )
 
 
-# ---------------------------------------------------------------------------
-# Multiplicacao serial
-# ---------------------------------------------------------------------------
-
 def multiplicar_serial(a, b):
     """
-    Multiplica as matrizes A e B de forma sequencial (serial).
+    Multiplica A x B de forma sequencial (serial).
 
-    Implementa o algoritmo classico de multiplicacao de matrizes:
-    C[i][j] = soma(A[i][k] * B[k][j]) para todo k.
-
-    Serve como baseline para calculo de speedup nos experimentos.
+    Algoritmo classico: C[i][j] = soma(A[i][k] * B[k][j]) para todo k.
+    Serve como baseline para calculo de speedup.
 
     Args:
         a : matriz A com dimensao M x N
@@ -125,32 +110,27 @@ def multiplicar_serial(a, b):
     ]
 
 
-# ---------------------------------------------------------------------------
-# Divisao e reuniao de blocos (usadas por paralelo e distribuido)
-# ---------------------------------------------------------------------------
-
 def fatiar_em_blocos(matriz, num_partes):
     """
     Divide a matriz em blocos de linhas para processamento paralelo/distribuido.
 
-    O resto da divisao e distribuido nas primeiras fatias, garantindo que
-    nenhum bloco fique com mais de uma linha a mais que os demais.
+    O resto da divisao e distribuido nas primeiras fatias para equilibrar a carga.
 
     Args:
-        matriz    : matriz a ser dividida
-        num_partes: numero de blocos desejados
+        matriz     : matriz a ser dividida
+        num_partes : numero de blocos desejados
 
     Returns:
-        Lista de tuplas (inicio, fim, bloco), onde:
-            - inicio : indice da primeira linha do bloco na matriz original
-            - fim    : indice exclusivo da ultima linha do bloco
-            - bloco  : sub-lista de linhas correspondente
+        Lista de tuplas (inicio, fim, bloco) onde:
+            inicio : indice da primeira linha do bloco na matriz original
+            fim    : indice exclusivo da ultima linha
+            bloco  : sub-lista de linhas correspondente
     """
     total_linhas, _ = dimensoes(matriz)
     if num_partes <= 0:
         raise ValueError("O numero de partes deve ser positivo.")
 
-    # Garante que nao criamos mais partes do que linhas existem
+    # Nao cria mais partes do que linhas existem
     num_partes = min(num_partes, total_linhas)
     base = total_linhas // num_partes
     resto = total_linhas % num_partes
@@ -171,8 +151,8 @@ def reunir_blocos(blocos):
     """
     Recompoe a matriz final a partir dos blocos de resultado.
 
-    Ordena os blocos pelo indice de inicio para garantir a ordem correta,
-    independente da ordem em que os servidores responderam.
+    Ordena pelo indice de inicio para garantir ordem correta,
+    independente da ordem de resposta dos servidores.
 
     Args:
         blocos : iteravel de tuplas (inicio, fim, bloco)
@@ -194,16 +174,9 @@ def reunir_blocos(blocos):
     return resultado
 
 
-# ---------------------------------------------------------------------------
-# Multiplicacao paralela local
-# ---------------------------------------------------------------------------
-
 def _processar_bloco(args):
     """
     Funcao auxiliar executada em cada processo filho do pool.
-
-    Recebe um bloco de linhas de A e a matriz B completa,
-    e retorna o bloco de resultado C correspondente.
 
     Args:
         args : tupla ((inicio, fim, bloco_a), b)
@@ -218,13 +191,11 @@ def _processar_bloco(args):
 
 def multiplicar_paralelo(a, b, num_workers):
     """
-    Multiplica as matrizes A e B usando multiplos processos locais.
+    Multiplica A x B usando multiplos processos locais.
 
-    Divide A em blocos de linhas e distribui entre `num_workers` processos
-    usando ProcessPoolExecutor. Os resultados sao reunidos na ordem correta.
-
-    Obs: para matrizes pequenas o overhead de criacao dos processos pode
-    tornar esta versao mais lenta que a serial (ver Lei de Amdahl).
+    Divide A em blocos de linhas e distribui entre os processos.
+    Para matrizes pequenas o overhead pode tornar esta versao mais
+    lenta que a serial (ver Lei de Amdahl).
 
     Args:
         a           : matriz A com dimensao M x N
@@ -249,22 +220,18 @@ def multiplicar_paralelo(a, b, num_workers):
     return reunir_blocos(blocos_resultado)
 
 
-# ---------------------------------------------------------------------------
-# Validacao de corretude
-# ---------------------------------------------------------------------------
-
 def matrizes_iguais(a, b):
     """
     Verifica se duas matrizes sao identicas elemento a elemento.
 
-    Usada nos experimentos para confirmar que os modos paralelo e distribuido
-    produzem o mesmo resultado que o modo serial (corretude).
+    Usada para confirmar que os modos paralelo/distribuido produzem
+    o mesmo resultado que o serial (validacao de corretude).
 
     Args:
         a : primeira matriz
         b : segunda matriz
 
     Returns:
-        True se as matrizes forem iguais, False caso contrario.
+        True se forem iguais, False caso contrario.
     """
     return a == b
